@@ -1,0 +1,10 @@
+version: '3'
+services:
+  emulator:
+    build: .
+    volumes:
+     - ./2017-11-29-raspbian-stretch-lite.img:/os.img
+     - ./run.sh:/run.sh   
+    ports:
+     - 5901:5901
+    privileged: true
