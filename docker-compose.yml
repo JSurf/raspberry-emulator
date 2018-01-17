@@ -7,5 +7,11 @@ services:
      - ./run.sh:/run.sh   
      - ./:/scripts
     ports:
-     - 5901:5901
+     - "5901:5901"
+     - "5903:5902"
+     - "123:22"
+     - "222:222"
     privileged: true
+    working_dir: /scripts
+    command: /scripts/qemu-pi.sh /os.img
+    

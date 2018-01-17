@@ -28,7 +28,7 @@ IMG=$1
 KERNEL=kernel-qemu-4.4.34-jessie
 
 NO_NETWORK=1            # set to 1 to skip network configuration
-IFACE=enp3s0            # interface that we currently use for internet
+IFACE=eth0            # interface that we currently use for internet
 BRIDGE=br0              # name for the bridge we will create to share network with the raspbian img
 MAC='52:54:be:36:42:a9' # comment this line for random MAC (maybe annoying if on DHCP)
 BINARY_PATH=/usr/bin    # path prefix for binaries
@@ -147,7 +147,8 @@ fi
 
 # do it
 qemu-system-arm -kernel $KERNEL -cpu arm1176 -m 256 -M versatilepb $NET_ARGS \
-  $PARAMS_QEMU -no-reboot -drive format=raw,file=$IMG -append "$PARAMS_KERNEL"
+  $PARAMS_QEMU -no-reboot -drive format=raw,file=$IMG -append "$PARAMS_KERNEL" -redir tcp:22::22
+#  -device rtl8139,netdev=net0 -netdev user,id=net0,hostfwd=tcp::22-:22
 
 # restore network to what it was
 [[ "$NO_NETWORK" != "1" ]] && {
