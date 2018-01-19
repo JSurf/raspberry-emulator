@@ -3,15 +3,9 @@ services:
   emulator:
     build: .
     volumes:
-     - ./2017-11-29-raspbian-stretch-lite.img:/os.img
-     - ./run.sh:/run.sh   
-     - ./:/scripts    
+     - ./data:/data
     ports:
      - "5900:5900"
-     - "5901:5901"
-     - "5903:5902"
      - "1022:22"
     privileged: true
-    working_dir: /scripts
-    command: /run.sh /os.img
     

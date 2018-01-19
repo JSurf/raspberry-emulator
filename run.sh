@@ -1,13 +1,12 @@
 #!/bin/bash
 
-IMG=$1
-KERNEL=kernel-qemu-4.4.34-jessie
-TCP_PORTS="22,80,443"
-UDP_PORTS=""
-VNC="tcp"
-VNC_IP=""
-VNC_ID=0
-
+# Test if image exists, or extract from zip
+if test -f $IMG; then
+  echo "$IMG exists, using existing image"
+else
+  test -f $IMG_DOWN || { echo "$IMG_DOWN not found"; exit 1; }
+  unzip $IMG_DOWN -d /data
+fi
 
 # sanity checks
 type qemu-system-arm &>/dev/null || { echo "QEMU ARM not found"       ; exit 1; }
