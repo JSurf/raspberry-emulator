@@ -1,15 +1,83 @@
-#!/bin/sh
-OFFSET=$(($(sfdisk -d /os.img | grep img1 | sed -r 's/.*start=\s*([0-9]+).*size.*/\1/') * 512))
-#OFFSET=$(($(sfdisk -d /os.img | grep img2 | sed -r 's/.*start=\s*([0-9]+).*size.*/\1/') * 512))
-mount -v -o offset=$OFFSET -t vfat /os.img /mnt/img
-CMDLINE="earlyprintk loglevel=8 console=ttyAMA0,115200 dwc_otg.lpm_enable=0 root=PARTUUID=37665771-02 rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait"
-#CMDLINE="rw earlyprintk loglevel=8 console=ttyAMA0,115200 dwc_otg.lpm_enable=0 root=/dev/mmcblk0p2 init=/bin/bash"
-#CMDLINE="earlyprintk loglevel=8 dwc_otg.lpm_enable=0 console=serial0,115200 console=tty1 root=PARTUUID=37665771-02 rootfstype=ext4 elevator=deadline init=/usr/lib/raspi-config/init_resize.sh"
-#qemu-system-arm -M raspi2 -kernel /mnt/img/kernel7.img -vnc :1 -append "$CMDLINE" -drive file=/os.img,if=sd,format=raw -dtb /mnt/img/bcm2709-rpi-2-b.dtb -serial stdio
-qemu-system-arm -M raspi2 -kernel /mnt/img/kernel7.img -curses -append "$CMDLINE" -drive file=/os.img,if=sd,format=raw -dtb /mnt/img/bcm2709-rpi-2-b.dtb -serial stdio
+#!/bin/bash
 
-#qemu-system-arm -M raspi2 -kernel boot/kernel7.img -drive format=raw,file=2017-11-29-raspbian-stretch-lite.img -append "rw earlyprintk loglevel=8 console=ttyAMA0,115200 dwc_otg.lpm_enable=0 root=/dev/mmcblk0p2" -dtb 2015-11-21-raspbian-boot/bcm2709-rpi-2-b.dtb -serial stdio
-#dwc_otg.lpm_enable=0 console=serial0,115200 console=tty1 root=PARTUUID=37665771-02 rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait quiet init=/usr/lib/raspi-config/init_resize.sh
-#mv /mnt/img/etc/ld.so.preload /mnt/img/etc/ld.so.preload.disabled
-#sed --in-place=".org" "s,/dev/mmcblk0p1,/dev/sda1," /mnt/img/etc/fstab
-#sed --in-place=".org" "s,/dev/mmcblk0p2,/dev/sda2," /mnt/img/etc/fstab
+IMG=$1
+KERNEL=kernel-qemu-4.4.34-jessie
+TCP_PORTS="22,80,443"
+UDP_PORTS=""
+VNC="tcp"
+VNC_IP=""
+VNC_ID=0
+
+
+# sanity checks
+type qemu-system-arm &>/dev/null || { echo "QEMU ARM not found"       ; exit 1; }
+test -f $IMG && test -f $KERNEL  || { echo "$IMG or $KERNEL not found"; exit 1; }
+
+# prepare the image
+SECTOR1=$( fdisk -l $IMG | grep FAT32 | awk '{ print $2 }' )
+SECTOR2=$( fdisk -l $IMG | grep Linux | awk '{ print $2 }' )
+OFFSET1=$(( SECTOR1 * 512 ))
+OFFSET2=$(( SECTOR2 * 512 ))
+
+# make 'boot' vfat partition available locally
+mkdir -p tmpmnt
+mount $IMG -o offset=$OFFSET1 tmpmnt
+touch tmpmnt/ssh   # this enables ssh
+umount tmpmnt
+
+# make 'linux' ext4 partition available locally
+mount $IMG -o offset=$OFFSET2 tmpmnt
+cat > tmpmnt/etc/udev/rules.d/90-qemu.rules <<EOF
+KERNEL=="sda", SYMLINK+="mmcblk0"
+KERNEL=="sda?", SYMLINK+="mmcblk0p%n"
+KERNEL=="sda2", SYMLINK+="root"
+EOF
+
+umount -l tmpmnt
+rmdir tmpmnt &>/dev/null
+
+PARAMS_KERNEL="root=/dev/sda2 panic=1"
+
+echo "[network]"
+  NETWORK="user"
+  REDIR=""
+  if [ ! -z "$TCP_PORTS" ]; then
+    OIFS=$IFS
+    IFS=","
+    for port in $TCP_PORTS; do
+      REDIR+="-redir tcp:${port}::${port} "
+    done
+    IFS=$OIFS
+  fi
+  
+  if [ ! -z "$UDP_PORTS" ]; then
+    OIFS=$IFS
+    IFS=","
+    for port in $UDP_PORTS; do
+      REDIR+="-redir udp:${port}::${port} "
+    done
+    IFS=$OIFS
+  fi
+  FLAGS_NETWORK="${REDIR}"
+
+echo "Using ${NETWORK}"
+echo "parameter: ${FLAGS_NETWORK}"
+
+echo "[Remote Access]"
+  if [ "$VNC" == "tcp" ]; then
+    FLAGS_REMOTE_ACCESS="-vnc ${VNC_IP}:${VNC_ID}"
+  elif [ "$VNC" == "reverse" ]; then
+    FLAGS_REMOTE_ACCESS="-vnc ${VNC_IP}:${VNC_PORT},reverse"
+  elif [ "$VNC" == "sock" ]; then
+    FLAGS_REMOTE_ACCESS="-vnc unix:${VNC_SOCK}"
+  else
+    FLAGS_REMOTE_ACCESS="-nographic"
+    PARAMS_KERNEL="$PARAMS_KERNEL vga=normal console=ttyAMA0"
+  fi
+echo "parameter: ${FLAGS_REMOTE_ACCESS}"
+
+
+# do it
+set -x
+qemu-system-arm -kernel $KERNEL -cpu arm1176 -m 256 -M versatilepb $FLAGS_NETWORK \
+  $FLAGS_REMOTE_ACCESS -no-reboot -drive format=raw,file=$IMG -append "$PARAMS_KERNEL"
