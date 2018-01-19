@@ -1,10 +1,14 @@
 FROM debian:buster-slim
 RUN apt-get update \
     && apt-get -q --no-install-recommends -y install \
-	      qemu-system-arm \
-		  wget \
+          qemu-system-arm \
           ca-certificates \
           wget \
+          procps \
+          iproute2 \
+          kmod \
+          unzip \
+          uml-utilities \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 CMD /run.sh

@@ -5,7 +5,7 @@ services:
     volumes:
      - ./2017-11-29-raspbian-stretch-lite.img:/os.img
      - ./run.sh:/run.sh   
-     - ./:/scripts
+     - ./:/scripts    
     ports:
      - "5901:5901"
      - "5903:5902"
